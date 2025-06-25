@@ -1,0 +1,102 @@
+# IMPORTANT:
+# - Ensure that you have added the necessary GitHub variables and secrets in your repository settings.
+# - The following variables and secrets must be configured:
+#     • PHARIA_AI_TOKEN with PhariaOS Permissions
+#     • PHARIAOS_MANAGER_URL
+#     • IMAGE_REGISTRY
+#     • IMAGE_REPOSITORY
+#     • IMAGE_REGISTRY_USER
+#     • IMAGE_REGISTRY_PASSWORD
+#
+# - For Kernel based applications, also configure:
+#     • SERVICE_PHARIA_KERNEL_ADDRESS
+#
+# - For Summary based applications, also configure:
+#     • SERVICE_PHARIA_AI_INFERENCE_API_BASE_URL
+#     • SERVICE_SUMMARY_MODEL
+
+# - Additionally, replace <application-name> in the deploy and publish commands with your actual application name.
+
+name: Deploy Application
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test_ui:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Run tests
+        run: pnpm test:unit
+
+  test_service:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: service
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: 'pyproject.toml'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Run service tests
+        run: uv run pytest
+
+  deploy:
+    needs: [test_ui, test_service]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Publish and Deploy Application
+        env:
+          PHARIA_AI_TOKEN: ${{ secrets.PHARIA_AI_TOKEN }}
+          PHARIAOS_MANAGER_URL: ${{ vars.PHARIAOS_MANAGER_URL }}
+          IMAGE_REGISTRY: ${{ secrets.IMAGE_REGISTRY }}
+          IMAGE_REPOSITORY: ${{ secrets.IMAGE_REPOSITORY }}
+          IMAGE_REGISTRY_USER: ${{ secrets.IMAGE_REGISTRY_USER }}
+          IMAGE_REGISTRY_PASSWORD: ${{ secrets.IMAGE_REGISTRY_PASSWORD }}
+
+          # For Kernel based applications
+          SERVICE_PHARIA_KERNEL_ADDRESS: ${{ vars.PHARIA_KERNEL_ADDRESS }}
+
+          # For Summary Based Applications
+          SERVICE_PHARIA_AI_INFERENCE_API_BASE_URL: ${{ vars.PHARIA_AI_INFERENCE_API_BASE_URL }}
+          SERVICE_SUMMARY_MODEL: ${{ vars.SUMMARY_MODEL }}
+        run: |
+          npx @aleph-alpha/pharia-ai-cli publish --name <application-name>
+          npx @aleph-alpha/pharia-ai-cli deploy --image <application-name>

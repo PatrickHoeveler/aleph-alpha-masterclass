@@ -1,0 +1,71 @@
+# IMPORTANT:
+# - Ensure that you have added the necessary GitHub variables and secrets in your repository settings.
+# - The following variables/secrets must be configured:
+#     • SKILL_REGISTRY
+#     • SKILL_REPOSITORY
+#     • SKILL_REGISTRY_USER
+#     • SKILL_REGISTRY_TOKEN
+#     • PHARIA_KERNEL_ADDRESS
+#
+# - Additionally, replace <skill-name> in the build and publish commands with your actual skill name.
+
+
+name: Publish Skill
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: skill
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: 'pyproject.toml'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Run skill tests
+        run: uv run pytest
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: skill
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: 'pyproject.toml'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Build and Publish Skill
+        env:
+          SKILL_REGISTRY: ${{ secrets.SKILL_REGISTRY }}
+          SKILL_REPOSITORY: ${{ secrets.SKILL_REPOSITORY }}
+          SKILL_REGISTRY_USER: ${{ secrets.SKILL_REGISTRY_USER }}
+          SKILL_REGISTRY_TOKEN: ${{ secrets.SKILL_REGISTRY_TOKEN }}
+        run: |
+          uv run pharia-skill build <skill-name>
+          uv run pharia-skill publish <skill-name>

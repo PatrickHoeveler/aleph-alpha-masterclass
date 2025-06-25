@@ -1,0 +1,43 @@
+FROM ubuntu:oracular@sha256:eea047b4b181f2d3aeafbc0ce5294a2bbb3b98153a68b9ed4bc573d871ca9450 as build-image
+
+# Install needed tools
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y pipx python3 && \
+    rm -r /var/lib/apt/lists/*
+
+# Install and setup uv
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/root/.local/bin:$PATH"
+
+RUN pipx install uv
+
+COPY pyproject.toml uv.lock README.md ./
+COPY ./src ./src
+RUN uv sync --frozen
+
+FROM ubuntu:oracular@sha256:eea047b4b181f2d3aeafbc0ce5294a2bbb3b98153a68b9ed4bc573d871ca9450
+
+COPY --from=build-image /app/.venv /app/.venv
+
+# Install needed tools
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y python3 && \
+    rm -r /var/lib/apt/lists/*
+
+# Setup
+WORKDIR /app
+
+ENV PATH="/app/.venv/bin:/root/.local/bin:$PATH"
+
+COPY ./src ./src
+COPY ./ui-artifacts ./ui-artifacts
+
+USER 1000:1000
+
+EXPOSE 8080
+
+# Command to run the application
+CMD ["uvicorn", "src.service.main:app", "--host", "0.0.0.0", "--port", "8080"]
