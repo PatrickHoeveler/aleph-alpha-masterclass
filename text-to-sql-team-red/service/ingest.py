@@ -19,6 +19,7 @@ from intelligence_layer.connectors import (
 )
 from intelligence_layer.core import InMemoryTracer, LuminousControlModel
 from intelligence_layer.examples import MultipleChunkRetrieverQa, RetrieverBasedQaInput
+from tqdm import tqdm
 
 load_dotenv()
 
@@ -30,7 +31,7 @@ document_index = DocumentIndexClient(
 )
 
 # change this value if you want to use a collection of a different name
-COLLECTION = "team-red"
+COLLECTION = "team-red-collection"
 
 collection_path = CollectionPath(namespace=NAMESPACE, collection=COLLECTION)
 
@@ -39,23 +40,26 @@ INDEX = "team-red-index"
 index_path = IndexPath(namespace=NAMESPACE, index=INDEX)
 
 
-examples_path = Path("data/examples.json")
-if examples_path.exists():
-    with open(examples_path, "r", encoding="utf-8") as file:
-        examples = json.load(file)
-        for example in examples:
-            document_path = DocumentPath(
-                collection_path=collection_path, document_name=str(uuid.uuid4())
-            )
-            document_index.add_document(
-                document_path,
-                contents=DocumentContents._from_modalities_json(
-                    {
-                        "contents": [{"modality": "text", "text": example["question"]}],
-                        "metadata": {"query": example["query"]},
-                    }
-                ),
-            )
+# examples_path = Path("data/examples.json")
+# if examples_path.exists():
+#     with open(examples_path, "r", encoding="utf-8") as file:
+#         examples = json.load(file)
+#         for example in tqdm(examples):
+#             document_path = DocumentPath(
+#                 collection_path=collection_path, document_name=str(uuid.uuid4())
+#             )
+#             document_index.add_document(
+#                 document_path,
+#                 contents=DocumentContents._from_modalities_json(
+#                     {
+#                         "contents": [{"modality": "text", "text": example["question"]}],
+#                         "metadata": {"query": example["query"]},
+#                     }
+#                 ),
+#             )
 
-else:
-    print(f"File {examples_path} does not exist.")
+# else:
+#     print(f"File {examples_path} does not exist.")
+
+
+[print(x.document_path) for x in document_index.documents(collection_path)]
