@@ -511,7 +511,7 @@ wheels = [
 ]
 
 [[package]]
-name = "test-qa-without-auth-skill"
+name = "text-to-sql-team-red-skill"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

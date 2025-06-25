@@ -2,8 +2,8 @@ from pharia_skill import ChatParams, Csi, IndexPath, Message, skill
 from pydantic import BaseModel
 
 NAMESPACE = "Studio"
-COLLECTION = "papers"
-INDEX = "asym-64"
+COLLECTION = "team-red-collection"
+INDEX = "team-red-index"
 
 
 class Input(BaseModel):
@@ -28,14 +28,46 @@ def custom_rag(csi: Csi, input: Input) -> Output:
     if not (documents := csi.search(index, input.question, 3, 0.5)):
         return Output(answer=None)
 
-    context = "\n".join([d.content for d in documents])
-    content = f"""Using the provided context documents below, answer the following question accurately and comprehensively. If the information is directly available in the context documents, cite it clearly. If not, use your knowledge to fill in the gaps while ensuring that the response is consistent with the given information. Do not fabricate facts or make assumptions beyond what the context or your knowledge base provides. Ensure that the response is structured, concise, and tailored to the specific question being asked.
+    ranked_queries = []
+    for rank, document in enumerate(documents, start=1):
+        metadata = csi.document_metadata(document_path=document.document_path)
+        query = metadata.get("query", "")
+        ranked_queries.append({"rank": rank, "query": query})
 
-Input: {context}
+    print(f"Ranked Queries: {ranked_queries}")
 
-Question: {input.question}
+    # TODO: Prompt Engineering
+
+    context = "\n".join(
+        [f"Rank: {q['rank']}, Query: {q['query']}" for q in ranked_queries]
+    )
+
+    # Read the database schema from schema.txt
+    with open("schema.txt", "r") as schema_file:
+        db_schema = schema_file.read()
+
+    content = f"""Using the provided top three SQL queries below, generate a new SQL query that accurately addresses the given question. Ensure the generated query is syntactically correct and optimized for execution. If possible, combine relevant elements from the provided queries to construct the new query. Do not fabricate data or make assumptions beyond the provided information.
+
+    Only answer with the SQL query, without any additional text or explanation so that we can directly use it for execution on the Northwind Sqlite db.
+
+    Top Queries:
+    {context}
+
+    DB Schema:
+    {db_schema}
+        
+    Question: {input.question}
 """
     message = Message.user(content)
     params = ChatParams(max_tokens=512)
     response = csi.chat("llama-3.1-8b-instruct", [message], params)
     return Output(answer=response.message.content)
+
+
+if __name__ == "__main__":
+    from pharia_skill.testing import DevCsi
+
+    csi = DevCsi()
+    res = custom_rag(csi, Input(question="Please query the number of tables."))
+    print("---- result ----")
+    print(res.answer)
