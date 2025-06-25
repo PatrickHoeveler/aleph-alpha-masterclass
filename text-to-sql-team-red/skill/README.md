@@ -20,6 +20,15 @@ Configure the credentials for uv:
 set -a && source ../.env
 ```
 
+For Windows PowerShell
+```shell
+Get-Content ../.env | ForEach-Object {
+>>     if ($_ -match '^\s*([^#][^=]*)=(.*)$') {
+>>         [System.Environment]::SetEnvironmentVariable($matches[1].Trim(), $matches[2].Trim())
+>>     }
+>> }
+```
+
 Install the SDK and other dependencies:
 
 ```shell
