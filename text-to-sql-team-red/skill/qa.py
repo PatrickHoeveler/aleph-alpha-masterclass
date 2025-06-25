@@ -204,7 +204,7 @@ def custom_rag(csi: Csi, input: Input) -> Output:
     {context}
 
     DB Schema:
-    {db_schema}
+    {DB_SCHEMA}
         
     Question: {input.question}
 """
