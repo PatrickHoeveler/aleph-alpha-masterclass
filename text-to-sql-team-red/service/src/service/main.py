@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
-from service.db_service import SQLLiteDatabase
+from service.db_service import SQLiteDatabase
 from service.dependencies import with_settings
 from service.kernel import HttpKernel
 from service.routes import router
@@ -15,7 +15,7 @@ settings = with_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     client = HttpKernel(str(settings.pharia_kernel_address))
-    database = SQLLiteDatabase(settings.database_path, auto_connect=True)
+    database = SQLiteDatabase(settings.database_path, auto_connect=True)
     yield {"kernel": client, "database": database}
     await client.shutdown()
     database.disconnect()
@@ -51,6 +51,7 @@ app.include_router(router)
 # PhariaAssistant.                                                            #
 ###############################################################################
 app.mount("/ui", StaticFiles(directory="ui-artifacts"), name="ui")
+app.mount("/data", StaticFiles(directory="data"), name="data")
 
 
 def main():

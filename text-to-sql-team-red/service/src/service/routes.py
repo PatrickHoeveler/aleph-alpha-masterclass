@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from service.db_service import SQLiteDatabase, init_db_connection, query
+from service.db_service import SQLiteDatabase
 from service.dependencies import get_token, with_database, with_kernel
 from service.kernel import Json, Kernel, KernelException, Skill
 from service.models import HealthResponse
+import json
 
 router: APIRouter = APIRouter()
 
@@ -36,21 +37,30 @@ async def qa(
     )
     try:
         answer = await kernel.run(skill_generator, token, await request.json())
+        print(f"Generated SQL: {answer}")
+        # Parse the answer as JSON to extract the SQL statement
+        answer_json = json.loads(answer) if isinstance(answer, str) else answer
+
         refined_answer = await kernel.run(
-            skill_refiner, token, {"sql_statement": answer.answer}
+            skill_refiner, token, {"sql_statement": answer_json.get("answer")
+}
         )
+        refined_answer_json = json.loads(refined_answer) if isinstance(refined_answer, str) else refined_answer
+        print(f"Refined SQL: {refined_answer}")
         sql_check = await kernel.run(
-            skill_checker, token, {"sql_statement": refined_answer.sql_statement}
+            skill_checker, token, {"sql_statement": refined_answer_json.get("refined_sql")}
         )
+        sql_check_json = json.loads(sql_check) if isinstance(sql_check, str) else sql_check
+        print(f"SQL Check: {sql_check_json}")
         output = Output(
             sql_statement=(
-                refined_answer.sql_statement if sql_check.sql_harmless else None
+                refined_answer_json.get("refined_sql") if sql_check_json.get("sql_harmless") else None
             ),
-            sql_harmless=sql_check.sql_harmless,
-            explanation=sql_check.explanation,
+            sql_harmless=sql_check_json.get("sql_harmless"),
+            explanation=sql_check_json.get("explanation"),
         )
 
-        return output
+        return output.model_dump()
 
     except KernelException as exp:
         error_message = ",".join(exp.args)

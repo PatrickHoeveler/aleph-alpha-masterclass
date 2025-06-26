@@ -19,6 +19,8 @@
     "@aleph-alpha/ds-components-vue": "1.67.5",
     "@aleph-alpha/lib-http": "1.2.2",
     "@unocss/reset": "66.0.0",
+    "axios": "^1.10.0",
+    "marked": "^15.0.12",
     "pinia": "3.0.1",
     "vue": "3.5.13",
     "vue-router": "4.5.0",

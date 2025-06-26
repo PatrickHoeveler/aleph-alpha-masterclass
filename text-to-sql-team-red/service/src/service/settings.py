@@ -31,4 +31,4 @@ class Settings(BaseSettings):
 
     enable_cors: bool = True
     pharia_kernel_address: HttpUrl
-    database_path: str = str(Path(__file__).parent.parent / "data" / "northwind.db")
+    database_path: str = str(Path(__file__).parent.parent.parent / "data" / "northwind.db")

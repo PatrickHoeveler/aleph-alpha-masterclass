@@ -11,6 +11,9 @@ import { z } from 'zod'
 export const SUCCESSFUL_QA_ANSWER_SCHEMA = z.object({
   traceId: z.string(),
   answer: z.string().optional(),
+  sql_statement: z.string().optional(),
+  sql_harmless: z.boolean().optional(),
+  explanation: z.string().optional(),
 })
 export type SuccessfulQaAnswer = z.infer<typeof SUCCESSFUL_QA_ANSWER_SCHEMA>
 

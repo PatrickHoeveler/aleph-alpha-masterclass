@@ -16,9 +16,14 @@ export const useUsecaseQaStore = defineStore('usecase-qa', () => {
 
     try {
       const response = await CUSTOM_RAG_SERVICE.customQa({ question: question })
+      console.log(response);
+      
       usecaseChatStore.addAnswer(usecaseId, questionId, {
         traceId: '',
-        answer: response.answer,
+        answer: response.sql_statement,
+        sql_statement: response.sql_statement,
+        sql_harmless: response.sql_harmless,
+        explanation: response.explanation,
       })
       isProcessingRequest.value[usecaseId] = false
     } catch (error) {

@@ -8,6 +8,9 @@ export type UsecaseQaAnswer = {
   traceId?: string
   answer?: string
   status: UsecaseQaAnswerStatus
+  sql_statement?: string
+  sql_harmless?: boolean
+  explanation?: string
 }
 
 export interface BaseQaChatEntry {
