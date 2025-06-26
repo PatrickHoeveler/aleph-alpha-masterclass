@@ -41,7 +41,7 @@ logging.basicConfig(
 
 from intelligence_layer.evaluation.dataset.domain import Example
 
-from sql_refiner import Input as Input_r
+from sql_refiner import Input as RefinerInput
 from sql_refiner import Output as Output_r
 from qa import Input, Output
 import tqdm
@@ -49,12 +49,12 @@ import tqdm
 load_dotenv(".env")
 PHARIA_STUDIO_PROJECT_NAME = "team-red"
 
-# studio_client = StudioClient(
-#     project=PHARIA_STUDIO_PROJECT_NAME,
-#     studio_url=os.getenv("PHARIA_STUDIO_ADDRESS"),
-#     auth_token=os.getenv("PHARIA_AI_TOKEN"),
-#     create_project=False,
-# )
+studio_client = StudioClient(
+    project=PHARIA_STUDIO_PROJECT_NAME,
+    studio_url=os.getenv("PHARIA_STUDIO_ADDRESS"),
+    auth_token=os.getenv("PHARIA_AI_TOKEN"),
+    create_project=False,
+)
 
 
 class QATask(Task[Input, Output]):
@@ -79,52 +79,24 @@ class QATask(Task[Input, Output]):
         #     print(e)
         #     return Output(answer=None)
 
-        print("---- question ----")
-        print(input.question)
+        # print("---- question QA ----")
+        # print(input.question)
         csi = DevCsi().with_studio("team-red")
         res = custom_rag(csi, input)
-        print("---- result ----")
-        print(res.answer)
-        return Output(answer=res.answer)
-        
+        #return Output(answer=res.answer)
 
-class RefinerTask(Task[Input_r, Output_r]):
-    def __init__(self) -> None:
-        self.token = os.getenv("PHARIA_AI_TOKEN")
-        self.kernel_url = os.getenv("PHARIA_KERNEL_ADDRESS")
-        self.skill_namespace = "team-red"
-        self.skill_name = "team-red-skill"
+        res_refined = sql_refiner(csi, RefinerInput(sql_statement=str(res.answer)))
 
-    def do_run(self, input: Input_r, task_span: TaskSpan) -> Output_r:
-        # try:
-        #     headers = {"Authorization": f"Bearer {self.token}"}
-        #     url = f"{self.kernel_url}/v1/skills/{self.skill_namespace}/{self.skill_name}/run"
-        #     response = requests.post(
-        #         url,
-        #         json=input.model_dump() if isinstance(input, BaseModel) else input,
-        #         headers=headers,
-        #     )
-        #     response = response.json()
-        #     return Output(answer=response["answer"])
-        # except Exception as e:
-        #     print(e)
-        #     return Output(answer=None)
-
-        print("---- question ----")
-        print(input.sql_statement)
-        csi = DevCsi().with_studio("team-red")
-        res = sql_refiner(csi, input)
-        print("---- result ----")
-        print(res.refined_sql)
-        return Output_r(answer=res.refined_sql)
+        return Output(answer=res_refined.refined_sql)
 
 class ExpectedOutput(BaseModel):
     query: str | None
 
 
 #studio_dataset_repo = StudioDatasetRepository(studio_client=studio_client)
+from pathlib import Path
 
-with open("../test-data/examples.json", 'r', encoding='utf-8') as file:
+with open(f"{Path(__file__).parent.parent}\\test-data\\examples.json", 'r', encoding='utf-8') as file:
     test_set = json.load(file)
 
     
@@ -213,11 +185,11 @@ class Checker(ABC):
     @staticmethod
     def parse_score(score_str: str) -> float:
         """Convert score string to float if valid, else return fallback"""
-        return (
-            float(score_str)
-            if score_str.isdigit() and 0 <= float(score_str) <= 10
-            else 1
-        )
+        if score_str.isdigit() and 0 <= float(score_str) <= 10:
+            return float(score_str)
+        else: 
+            print("ERROR EVAL RETURN NON FLOAT SCORE")
+            return 1
 
     @staticmethod
     def compute_weighted_score(logprobs, fallback_score: float) -> float:
@@ -284,7 +256,7 @@ class AccuracyChecker(Checker):
         """
 
 
-class FactualityChecker(Checker):
+class TechnicalChecker(Checker):
     def __init__(self) -> None:
         super().__init__()
         self.system_prompt = """
@@ -386,7 +358,7 @@ class EfficiencyChecker(Checker):
 class QaEvaluation(BaseModel):
     efficiency_score: float = 0.0  # Coverage of expected content
     accuracy_score: float = 0.0  # Factual correctness
-    factuality_score: float = 0.0  # Absence of hallucinations
+    technical_score: float = 0.0  # Absence of hallucinations
     # correct_sources: list[str] = []  # Properly cited sources
     # incorrect_sources: list[str] = []  # Incorrectly cited sources
     # source_accuracy: float = 0.0  # Precision of source citations
@@ -400,7 +372,7 @@ class QaEvaluationLogic(
     def __init__(self) -> None:
         super().__init__()
         self.accuracy_checker = AccuracyChecker()
-        self.factuality_checker = FactualityChecker()
+        self.technical_checker = TechnicalChecker()
         self.efficiency_checker = EfficiencyChecker()
 
     def do_evaluate_single_output(
@@ -421,86 +393,72 @@ class QaEvaluationLogic(
             generated_answer=output.answer,
         )
 
-        factuality_score = self.factuality_checker.get_metric(
+        technical_score = self.technical_checker.get_metric(
             question=example.input.question,
             db_schema=example.input.db_schema,
             expected_answer=example.expected_output.query,
             generated_answer=output.answer,
         )
-
-        # correct_sources, incorrect_sources = self._check_sources(
-        #     expected_sources=example.expected_output.sources,
-        #     generated_sources=output.sources,
-        # )
         return QaEvaluation(
             efficiency_score=efficiency_score,
             accuracy_score=accuracy_score,
-            factuality_score=factuality_score,
-            #correct_sources=correct_sources,
-            #incorrect_sources=incorrect_sources,
-            # source_accuracy=self._calculate_source_accuracy(
-            #     expected_sources=example.expected_output.sources,
-            #     generated_sources=output.sources,
-            # ),
-            # source_recall=self._calculate_source_recall(
-            #     expected_sources=example.expected_output.sources,
-            #     generated_sources=output.sources,
-            # ),
+            technical_score=technical_score,
         )
 
-    # def _check_sources(
-    #     self, expected_sources: list[str], generated_sources: list[str]
-    # ) -> tuple[list[str], list[str]]:
-    #     if not generated_sources:
-    #         return [], []
 
-    #     if not expected_sources:
-    #         return [], generated_sources.copy()
+class RefinerEvaluation(BaseModel):
+    efficiency_score: float = 0.0  # Coverage of expected content
+    accuracy_score: float = 0.0  # Factual correctness
+    technical_score: float = 0.0  # Absence of hallucinations
 
-    #     expected_set = {source.lower().strip() for source in expected_sources}
-    #     generated_set = {source.lower().strip() for source in generated_sources}
+class RefinerEvaluationLogic(
+    SingleOutputEvaluationLogic[Input, Output_r, ExpectedOutput, RefinerEvaluation]
+):
 
-    #     correct_sources_lower = expected_set.intersection(generated_set)
+    def __init__(self) -> None:
+        super().__init__()
+        self.accuracy_checker = AccuracyChecker()
+        self.technical_checker = TechnicalChecker()
+        self.efficiency_checker = EfficiencyChecker()
 
-    #     correct_sources = []
-    #     incorrect_sources = []
+    def do_evaluate_single_output(
+        self, example: Example[Input, ExpectedOutput], output: Output_r
+    ) -> RefinerEvaluation:
 
-    #     for source in generated_sources:
-    #         if source.lower().strip() in correct_sources_lower:
-    #             correct_sources.append(source)
-    #         else:
-    #             incorrect_sources.append(source)
+        efficiency_score = self.efficiency_checker.get_metric(
+            question=example.input.question,
+            db_schema=example.input.db_schema,
+            expected_answer=example.expected_output.query,
+            generated_answer=output.refined_sql,
+        )
 
-    #     return correct_sources, incorrect_sources
+        accuracy_score = self.accuracy_checker.get_metric(
+            question=example.input.question,
+            db_schema=example.input.db_schema,
+            expected_answer=example.expected_output.query,
+            generated_answer=output.refined_sql,
+        )
 
-    # def _calculate_source_accuracy(
-    #     self, expected_sources: list[str], generated_sources: list[str]
-    # ) -> float:
+        technical_score = self.technical_checker.get_metric(
+            question=example.input.question,
+            db_schema=example.input.db_schema,
+            expected_answer=example.expected_output.query,
+            generated_answer=output.refined_sql,
+        )
+        return RefinerEvaluation(
+            efficiency_score=efficiency_score,
+            accuracy_score=accuracy_score,
+            technical_score=technical_score,
+        )
 
-    #     if not generated_sources:
-    #         return 0.0 if expected_sources else 1.0
-
-    #     correct_sources, _ = self._check_sources(expected_sources, generated_sources)
-    #     return len(correct_sources) / len(generated_sources)
-
-    # def _calculate_source_recall(
-    #     self, expected_sources: list[str], generated_sources: list[str]
-    # ) -> float:
-    #     if not expected_sources:
-    #         return 1.0
-
-    #     if not generated_sources:
-    #         return 0.0
-
-    #     expected_set = {source.lower().strip() for source in expected_sources}
-    #     generated_set = {source.lower().strip() for source in generated_sources}
-
-    #     found_expected = expected_set.intersection(generated_set)
-    #     return len(found_expected) / len(expected_sources)
-
+## Get example
 test_example = test_set[0]
+
+## Set up tasks
 task = QATask()
-input = Input(question=test_example["question"], db_schema=read_sql_file('..\\test-data\database_schemas\\'+ test_example["db_id"]+".sql"))
+
+## Run skill for QA
+input = Input(question=test_example["question"], db_schema=read_sql_file(f'{Path(__file__).parent.parent}\\test-data\\database_schemas\\'+ test_example["db_id"]+".sql"))
 output = task.run(input, NoOpTracer())
 
 example = Example(
@@ -509,16 +467,18 @@ example = Example(
         query=test_example.get("query")),
 )
 
+## Evaluate QA
 evaluation_logic = QaEvaluationLogic()
 evaluation = evaluation_logic.do_evaluate_single_output(example, output)
 
-print(evaluation)
+# print("--- Evaluation QA ---")
+# print(evaluation)
 
 
 class QaAggregatedEvaluation(BaseModel):
     average_efficiency_score: float
     average_accuracy_score: float
-    average_factuality_score: float
+    average_technical_score: float
 
 
 class QaAggregationLogic(
@@ -533,7 +493,7 @@ class QaAggregationLogic(
             return QaAggregatedEvaluation(
                 average_efficiency_score=0.0,
                 average_accuracy_score=0.0,
-                average_factuality_score=0.0,
+                average_technical_score=0.0,
                 )
 
         average_efficiency_score = round(
@@ -542,20 +502,20 @@ class QaAggregationLogic(
         average_accuracy_score = round(
             mean(eval.accuracy_score for eval in evaluation_list), 2
         )
-        average_factuality_score = round(
-            mean(eval.factuality_score for eval in evaluation_list), 2
+        average_technical_score = round(
+            mean(eval.technical_score for eval in evaluation_list), 2
         )
 
         return QaAggregatedEvaluation(
             average_efficiency_score=average_efficiency_score,
             average_accuracy_score=average_accuracy_score,
-            average_factuality_score=average_factuality_score,
+            average_technical_score=average_technical_score,
         )
     
 
 test_example2 = test_set[1]
 task = QATask()
-input2 = Input(question=test_example2["question"], db_schema=read_sql_file('..\\test-data\database_schemas\\'+ test_example2["db_id"]+".sql"))
+input2 = Input(question=test_example2["question"], db_schema=read_sql_file(f'{Path(__file__).parent.parent}\\test-data\database_schemas\\'+ test_example2["db_id"]+".sql"))
 output2 = task.run(input2, NoOpTracer())
 
 example2 = Example(
@@ -571,6 +531,31 @@ evaluation_1 = evaluation_logic.do_evaluate_single_output(example, output)
 evaluation_2 = evaluation_logic.do_evaluate_single_output(example2, output2)
 aggregation = aggregation_logic.aggregate([evaluation_1, evaluation_2])
 
-print(evaluation_1)
-print(evaluation_2)
-print(f"Aggregation: {aggregation}")
+# print(evaluation_1)
+# print(evaluation_2)
+# print(f"Aggregation: {aggregation}")
+
+
+benchmark_repository = StudioBenchmarkRepository(studio_client=studio_client)
+
+# benchmark = benchmark_repository.create_benchmark(
+#     dataset_id="9d2d571a-a75a-45a2-baea-3c5c9eeb5a50",
+#     eval_logic=evaluation_logic,
+#     aggregation_logic=aggregation_logic,
+#     name="LLM-as-a-judge-benchmark",
+#     description="This benchmark evaluates the LLM as a judge.",
+# )
+
+
+benchmark = benchmark_repository.get_benchmark(
+    benchmark_id="64b8822c-5981-4a2b-8703-a4c89dbf8d4c",
+    eval_logic=evaluation_logic,
+    aggregation_logic=aggregation_logic,
+)
+
+benchmark_execution_id = benchmark.execute(
+    task=task,
+    name="Refined SQL",
+    #name="SQL Only",
+    description="new system prompt"
+)

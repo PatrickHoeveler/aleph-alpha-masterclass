@@ -180,7 +180,7 @@ class Output(BaseModel):
 def custom_rag(csi: Csi, input: Input) -> Output:
     index = IndexPath(namespace=NAMESPACE, collection=COLLECTION, index=INDEX)
 
-    if not (documents := csi.search(index, input.question, 3, 0.5)):
+    if not (documents := csi.search(index, input.question, 10, 0.5)):
         return Output(answer=None)
 
     ranked_queries = []
@@ -189,7 +189,7 @@ def custom_rag(csi: Csi, input: Input) -> Output:
         query = metadata.get("query", "")
         ranked_queries.append({"rank": rank, "query": query})
 
-    print(f"Ranked Queries: {ranked_queries}")
+    # print(f"Ranked Queries: {ranked_queries}")
 
     # TODO: Prompt Engineering
 
@@ -197,33 +197,44 @@ def custom_rag(csi: Csi, input: Input) -> Output:
         [f"Rank: {q['rank']}, Query: {q['query']}" for q in ranked_queries]
     )
 
-    content = f"""Using the provided top three SQL queries below, generate a new SQL query that accurately addresses the given question. Ensure the generated query is syntactically correct and optimized for execution. If possible, combine relevant elements from the provided queries to construct the new query. Do not fabricate data or make assumptions beyond the provided information.
+    content = f"""You are given the top {len(ranked_queries)} most relevant SQL queries retrieved based on a user's question. Using these queries as examples, generate a new SQL query that directly and accurately answers the question.
 
-    Only answer with the SQL query, without any additional text or explanation so that we can directly use it for execution on the Northwind Sqlite db.
+        Your output must:
+        - Be syntactically correct for the Northwind SQLite database.
+        - Reuse and combine relevant components from the provided queries when appropriate.
+        - Stay within the context of the provided queries and database schema — do not fabricate data or make unsupported assumptions.
+        - Be optimized for performance when possible.
 
-    Top Queries:
-    {context}
+        Output only the final SQL query, with no explanation or additional text.
 
-    DB Schema:
-    {DB_SCHEMA}
-        
-    Question: {input.question}
-"""
+        Top Relevant Queries:
+        {context}
+
+        Database Schema:
+        {DB_SCHEMA}
+
+        User Question:
+        {input.question}
+        """
+    # print(f"Input Question: {input.question}")
     message = Message.user(content)
+
+    system_prompt = Message.system(
+            "You are an expert SQL assistant trained on the Northwind SQLite database." \
+            "Generate a single, optimized, syntactically correct SQL query" \
+            "based solely on provided examples, schema, and user's question." \
+            "Do not explain—return only the SQL statement."
+        )
+
     params = ChatParams(max_tokens=512)
-    response = csi.chat("llama-3.1-8b-instruct", [message], params)
+    response = csi.chat("llama-3.3-70b-instruct", [system_prompt, message], params)
     return Output(answer=response.message.content)
 
 
 if __name__ == "__main__":
     from pharia_skill.testing import DevCsi
 
-    csi = DevCsi().with_studio("team-red")
-    res = custom_rag(
-        csi,
-        Input(
-            question="Please query the number of tables - exclude the system tables."
-        ),
-    )
+    csi = DevCsi()
+    res = custom_rag(csi, Input(question="Please query the number of tables."))
     print("---- result ----")
     print(res.answer)
