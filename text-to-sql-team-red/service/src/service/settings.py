@@ -1,6 +1,7 @@
+from pathlib import Path
 from typing import TypeVar
 
-from pydantic import field_validator, HttpUrl
+from pydantic import HttpUrl, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 T = TypeVar("T")
@@ -30,3 +31,4 @@ class Settings(BaseSettings):
 
     enable_cors: bool = True
     pharia_kernel_address: HttpUrl
+    database_path: str = str(Path(__file__).parent.parent / "data" / "northwind.db")

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
-from service.db_service import init_db_connection, query
-from service.dependencies import get_token, with_kernel
+from service.db_service import SQLiteDatabase, init_db_connection, query
+from service.dependencies import get_token, with_database, with_kernel
 from service.kernel import Json, Kernel, KernelException, Skill
 from service.models import HealthResponse
 
@@ -63,22 +63,25 @@ async def qa(
 
 
 @router.post("/execute-sql")
-async def execute_sql(request: Request) -> Json:
+async def execute_sql(
+    request: Request, database: SQLiteDatabase = Depends(with_database)
+) -> Json:
     try:
-        # Initialize database connection
-        db_connection = init_db_connection()
-
         # Get the SQL statement from the request body
         request_data = await request.json()
         sql_statement = request_data.get("sql_statement")
-
         if not sql_statement:
             raise HTTPException(status_code=400, detail="SQL statement is required")
 
-        # Execute the SQL statement
-        result = query(db_connection, sql_statement)
+        database.connect()
 
-        return {"status": "success", "result": result}
+        headers, rows = database.query(sql_statement)
+        return {
+            "query": sql_statement,
+            "headers": headers,
+            "rows": rows,
+            "count": len(rows) if isinstance(rows, list) else 1,
+        }
 
     except Exception as exp:
         error_message = str(exp)

@@ -1,13 +1,13 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
-from starlette.middleware.cors import CORSMiddleware
-from starlette.staticfiles import StaticFiles
 import uvicorn
-
+from fastapi import FastAPI
+from service.db_service import SQLLiteDatabase
 from service.dependencies import with_settings
 from service.kernel import HttpKernel
 from service.routes import router
+from starlette.middleware.cors import CORSMiddleware
+from starlette.staticfiles import StaticFiles
 
 settings = with_settings()
 
@@ -15,8 +15,10 @@ settings = with_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     client = HttpKernel(str(settings.pharia_kernel_address))
-    yield {"kernel": client}
+    database = SQLLiteDatabase(settings.database_path, auto_connect=True)
+    yield {"kernel": client, "database": database}
     await client.shutdown()
+    database.disconnect()
 
 
 app = FastAPI(lifespan=lifespan)

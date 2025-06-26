@@ -2,7 +2,7 @@ import os
 from functools import lru_cache
 
 from fastapi import Header, HTTPException, Request
-
+from service.db_service import SQLiteDatabase
 from service.kernel import Kernel
 from service.settings import Settings
 
@@ -30,3 +30,7 @@ def get_token(authorization: str = Header(...)) -> str:
 
 def with_kernel(request: Request) -> Kernel:
     return request.state.kernel
+
+
+def with_database(request: Request) -> SQLiteDatabase:
+    return request.state.database
