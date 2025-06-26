@@ -218,6 +218,11 @@ if __name__ == "__main__":
     from pharia_skill.testing import DevCsi
 
     csi = DevCsi()
-    res = custom_rag(csi, Input(question="Please query the number of tables."))
+    res = custom_rag(
+        csi,
+        Input(
+            question="Please query the number of tables - exclude the system tables."
+        ),
+    )
     print("---- result ----")
     print(res.answer)
