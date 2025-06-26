@@ -31,6 +31,7 @@ from jinja2 import Template
 from abc import ABC
 
 from qa import custom_rag
+from sql_refiner import sql_refiner
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -39,6 +40,9 @@ logging.basicConfig(
 
 
 from intelligence_layer.evaluation.dataset.domain import Example
+
+from sql_refiner import Input as Input_r
+from sql_refiner import Output as Output_r
 from qa import Input, Output
 import tqdm
 
@@ -75,12 +79,44 @@ class QATask(Task[Input, Output]):
         #     print(e)
         #     return Output(answer=None)
 
-
+        print("---- question ----")
+        print(input.question)
         csi = DevCsi().with_studio("team-red")
-        res = custom_rag(csi, Input(question="Please query the number of tables."))
+        res = custom_rag(csi, input)
         print("---- result ----")
         print(res.answer)
         return Output(answer=res.answer)
+        
+
+class RefinerTask(Task[Input_r, Output_r]):
+    def __init__(self) -> None:
+        self.token = os.getenv("PHARIA_AI_TOKEN")
+        self.kernel_url = os.getenv("PHARIA_KERNEL_ADDRESS")
+        self.skill_namespace = "team-red"
+        self.skill_name = "team-red-skill"
+
+    def do_run(self, input: Input_r, task_span: TaskSpan) -> Output_r:
+        # try:
+        #     headers = {"Authorization": f"Bearer {self.token}"}
+        #     url = f"{self.kernel_url}/v1/skills/{self.skill_namespace}/{self.skill_name}/run"
+        #     response = requests.post(
+        #         url,
+        #         json=input.model_dump() if isinstance(input, BaseModel) else input,
+        #         headers=headers,
+        #     )
+        #     response = response.json()
+        #     return Output(answer=response["answer"])
+        # except Exception as e:
+        #     print(e)
+        #     return Output(answer=None)
+
+        print("---- question ----")
+        print(input.sql_statement)
+        csi = DevCsi().with_studio("team-red")
+        res = sql_refiner(csi, input)
+        print("---- result ----")
+        print(res.refined_sql)
+        return Output_r(answer=res.refined_sql)
 
 class ExpectedOutput(BaseModel):
     query: str | None
@@ -519,8 +555,8 @@ class QaAggregationLogic(
 
 test_example2 = test_set[1]
 task = QATask()
-input2 = Input(question=test_example["question"], db_schema=read_sql_file('..\\test-data\database_schemas\\'+ test_example["db_id"]+".sql"))
-output2 = task.run(input, NoOpTracer())
+input2 = Input(question=test_example2["question"], db_schema=read_sql_file('..\\test-data\database_schemas\\'+ test_example2["db_id"]+".sql"))
+output2 = task.run(input2, NoOpTracer())
 
 example2 = Example(
     input=input2,
