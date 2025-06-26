@@ -2,12 +2,14 @@
 name = "text-to-sql-team-red-skill"
 license = "Apache-2.0"
 version = "0.1.0"
-authors = [{ name = "Aleph Alpha Engineering", email = "engineering@aleph-alpha.com" }]
+authors = [
+    { name = "Aleph Alpha Engineering", email = "engineering@aleph-alpha.com" },
+]
 description = "Skill Example"
 
 requires-python = "~=3.12"
 
-dependencies = ["pharia-skill==0.11.1", 
+dependencies = ["pharia-skill>=0.16.6", 
                 "intelligence-layer"]
 
 [dependency-groups]
