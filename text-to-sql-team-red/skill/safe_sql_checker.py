@@ -1,3 +1,5 @@
+import json
+
 from pharia_skill import ChatParams, Csi, IndexPath, Message, skill
 from pydantic import BaseModel
 
@@ -23,26 +25,46 @@ class Input(BaseModel):
 
 
 class Output(BaseModel):
-    answer: str | None
+    sql_harmless: bool
+    explanation: str | None = None
 
 
 @skill
 def safe_sql_checker(csi: Csi, input: Input) -> Output:
     # Validate the provided SQL statement
     if not input.sql_statement.lower().startswith("select"):
-        return Output(answer="Error: Only SELECT statements are allowed.")
+
+        return Output(
+            sql_harmless=False, explanation="Only SELECT statements are allowed."
+        )
 
     # Check if the SQL statement is harmful
     content = f"""Analyze the following SQL statement and determine if it is harmful or could potentially cause damage to the database or its data. Provide a clear response indicating whether the statement is safe or harmful, and explain why.
 
     SQL Statement:
     {input.sql_statement}
+
+    Set the sql_harmless value to 'true' if the SQL statement is safe and 'false' if it is harmful. Do not include any additional text, explanations, or markdown annotations.
+
+    Also provide a brief explanation of your reasoning, if applicable. 
+
+
+    Always answer in the following json format:
+    {{
+        "sql_harmless": true/false,
+        "explanation": "Your explanation here"
+    }}
 """
     message = Message.user(content)
     params = ChatParams(max_tokens=512)
     response = csi.chat("llama-3.1-8b-instruct", [message], params)
 
-    return Output(answer=response.message.content)
+    response_json = json.loads(response.message.content)
+
+    return Output(
+        sql_harmless=response_json["sql_harmless"],
+        explanation=response_json["explanation"],
+    )
 
 
 if __name__ == "__main__":
@@ -51,7 +73,7 @@ if __name__ == "__main__":
     csi = DevCsi()
     res = safe_sql_checker(
         csi,
-        Input(sql_statement="SELECT * FROM Customers;"),
+        Input(sql_statement="DROP TABLE Categories;"),
     )
     print("---- result ----")
-    print(res.answer)
+    print(res)

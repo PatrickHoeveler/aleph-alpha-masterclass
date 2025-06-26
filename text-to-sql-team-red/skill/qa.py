@@ -217,7 +217,8 @@ def custom_rag(csi: Csi, input: Input) -> Output:
 if __name__ == "__main__":
     from pharia_skill.testing import DevCsi
 
-    csi = DevCsi()
+    csi = DevCsi().with_studio("team-red")
+
     res = custom_rag(
         csi,
         Input(
