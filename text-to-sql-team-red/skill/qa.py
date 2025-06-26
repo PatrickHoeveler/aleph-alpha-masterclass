@@ -1,5 +1,6 @@
 from pharia_skill import ChatParams, Csi, IndexPath, Message, skill
 from pydantic import BaseModel
+import os
 
 NAMESPACE = "Studio"
 COLLECTION = "team-red-collection"
@@ -217,7 +218,7 @@ def custom_rag(csi: Csi, input: Input) -> Output:
 if __name__ == "__main__":
     from pharia_skill.testing import DevCsi
 
-    csi = DevCsi()
+    csi = DevCsi().with_studio("team-red")
     res = custom_rag(csi, Input(question="Please query the number of tables."))
     print("---- result ----")
     print(res.answer)

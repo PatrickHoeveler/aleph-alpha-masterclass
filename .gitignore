@@ -1,2 +1,5 @@
 .env
 node_modules
+text-to-sql-team-red/skill/uv.lock
+.venv
+.pyproject.toml

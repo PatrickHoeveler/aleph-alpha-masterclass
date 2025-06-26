@@ -7,7 +7,8 @@ description = "Skill Example"
 
 requires-python = "~=3.12"
 
-dependencies = ["pharia-skill==0.11.1"]
+dependencies = ["pharia-skill==0.11.1", 
+                "intelligence-layer"]
 
 [dependency-groups]
 dev = [
@@ -25,5 +26,10 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["."]
 
+[tool.hatch.metadata]
+allow-direct-references=true
+
 [tool.hatch.build.targets.sdist]
 include = ["."]
+[tool.uv.sources]
+intelligence-layer = { git = "https://github.com/Aleph-Alpha/intelligence-layer-sdk.git", tag ="v10.0.0"} 
